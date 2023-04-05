@@ -4,15 +4,53 @@
 #include "Camera/CameraComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/InputComponent.h"
+#include "AbilitySystemComponent.h"
+#include "EnhancedInputComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/SpringArmComponent.h"
-#include "EnhancedInputComponent.h"
+#include "u2023rocky.h"
+#include "RockyAbilitySystemComponent.h"
+#include "RockyAttributeSet.h"
+#include "RockyGameplayAbility.h"
+#include <GameplayEffectTypes.h>
 #include "EnhancedInputSubsystems.h"
+
+class URockyGameplayAbility;
+struct FGameplayAbilitySpec;
 
 
 //////////////////////////////////////////////////////////////////////////
 // Au2023rockyCharacter
+
+void Au2023rockyCharacter::InitializeAttributes()
+{
+	if (AbilitySystemComponent && DefaultAttributeEffect)
+	{
+		FGameplayEffectContextHandle EffectContext = AbilitySystemComponent->MakeEffectContext();
+		EffectContext.AddSourceObject(this);
+
+		FGameplayEffectSpecHandle SpecHandle = AbilitySystemComponent->MakeOutgoingSpec(DefaultAttributeEffect, 1, EffectContext);
+
+		if (SpecHandle.IsValid())
+		{
+			FActiveGameplayEffectHandle GEHandle = AbilitySystemComponent->ApplyGameplayEffectSpecToSelf(*SpecHandle.Data.Get());
+		}
+	}
+}
+
+void Au2023rockyCharacter::GiveAbilities()
+{
+	if (HasAuthority() && AbilitySystemComponent)
+	{
+		for (TSubclassOf<URockyGameplayAbility>& StartupAbility : DefaultAbilities)
+		{
+			AbilitySystemComponent->GiveAbility(
+				FGameplayAbilitySpec(StartupAbility, 1, static_cast<int32>(StartupAbility.GetDefaultObject()->AbilityInputID), this)
+			);
+		}
+	}
+}
 
 Au2023rockyCharacter::Au2023rockyCharacter()
 {
@@ -49,6 +87,12 @@ Au2023rockyCharacter::Au2023rockyCharacter()
 
 	// Note: The skeletal mesh and anim blueprint references on the Mesh component (inherited from Character) 
 	// are set in the derived blueprint asset named ThirdPersonCharacter (to avoid direct content references in C++)
+
+	AbilitySystemComponent = CreateDefaultSubobject<URockyAbilitySystemComponent>(TEXT("Ability System"));
+	AbilitySystemComponent->SetIsReplicated(true);
+	AbilitySystemComponent->SetReplicationMode(EGameplayEffectReplicationMode::Minimal);
+
+	Attributes = CreateDefaultSubobject<URockyAttributeSet>(TEXT("Attributes"));
 }
 
 void Au2023rockyCharacter::BeginPlay()
@@ -64,6 +108,50 @@ void Au2023rockyCharacter::BeginPlay()
 			Subsystem->AddMappingContext(DefaultMappingContext, 0);
 		}
 	}
+}
+
+void Au2023rockyCharacter::PossessedBy(AController* NewController)
+{
+	Super::PossessedBy(NewController);
+
+	// Server GAS init
+	FGameplayAbilityActorInfo* ActorInfo = new FGameplayAbilityActorInfo();
+	ActorInfo->InitFromActor(this, this, AbilitySystemComponent);
+	AbilitySystemComponent->AbilityActorInfo = TSharedPtr<FGameplayAbilityActorInfo>(ActorInfo);
+	//AbilitySystemComponent->InitAbilityActorInfo(this, this);
+
+	InitializeAttributes();
+	GiveAbilities();
+}
+
+void Au2023rockyCharacter::OnRep_PlayerState()
+{
+	Super::OnRep_PlayerState();
+
+	FGameplayAbilityActorInfo* ActorInfo = new FGameplayAbilityActorInfo();
+	ActorInfo->InitFromActor(this, this, AbilitySystemComponent);
+	AbilitySystemComponent->AbilityActorInfo = TSharedPtr<FGameplayAbilityActorInfo>(ActorInfo);
+	//AbilitySystemComponent->InitAbilityActorInfo(this, this);
+
+	InitializeAttributes();
+
+	if (AbilitySystemComponent && InputComponent)
+	{
+		const FGameplayAbilityInputBinds Binds(
+			"Confirm",
+			"Cancel",
+			"/Script/u2023rocky.ERockyAbilityInputID",
+			static_cast<int32>(ERockyAbilityInputID::Confirm),
+			static_cast<int32>(ERockyAbilityInputID::Cancel)
+		);
+
+		AbilitySystemComponent->BindAbilityActivationToInputComponent(InputComponent, Binds);
+	}
+}
+
+UAbilitySystemComponent* Au2023rockyCharacter::GetAbilitySystemComponent() const
+{
+	return AbilitySystemComponent;
 }
 
 //////////////////////////////////////////////////////////////////////////
@@ -86,6 +174,18 @@ void Au2023rockyCharacter::SetupPlayerInputComponent(class UInputComponent* Play
 
 	}
 
+	if (AbilitySystemComponent && InputComponent)
+	{
+		const FGameplayAbilityInputBinds Binds(
+			"Confirm",
+			"Cancel",
+			"/Script/u2023rocky.ERockyAbilityInputID",
+			static_cast<int32>(ERockyAbilityInputID::Confirm),
+			static_cast<int32>(ERockyAbilityInputID::Cancel)
+		);
+
+		AbilitySystemComponent->BindAbilityActivationToInputComponent(InputComponent, Binds);
+	}
 }
 
 void Au2023rockyCharacter::Move(const FInputActionValue& Value)

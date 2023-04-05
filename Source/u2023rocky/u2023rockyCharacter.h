@@ -3,13 +3,17 @@
 #pragma once
 
 #include "CoreMinimal.h"
+#include "AbilitySystemInterface.h"
 #include "GameFramework/Character.h"
 #include "InputActionValue.h"
+#include <GameplayEffectTypes.h>
 #include "u2023rockyCharacter.generated.h"
 
+class UGameplayEffect;
+class URockyGameplayAbility;
 
 UCLASS(config=Game)
-class Au2023rockyCharacter : public ACharacter
+class Au2023rockyCharacter : public ACharacter, public IAbilitySystemInterface
 {
 	GENERATED_BODY()
 
@@ -37,10 +41,30 @@ class Au2023rockyCharacter : public ACharacter
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = Input, meta = (AllowPrivateAccess = "true"))
 	class UInputAction* LookAction;
 
-public:
-	Au2023rockyCharacter();
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Abilities", meta = (AllowPrivateAccess = "true"))
+	class URockyAbilitySystemComponent* AbilitySystemComponent;
+
+	UPROPERTY()
+	class URockyAttributeSet* Attributes;
+
 	
 
+public:
+	Au2023rockyCharacter();
+
+	virtual UAbilitySystemComponent* GetAbilitySystemComponent() const override;
+	virtual void InitializeAttributes();
+	virtual void GiveAbilities();
+
+	virtual void PossessedBy(AController* NewController) override;
+	virtual void OnRep_PlayerState() override;
+
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Abilities")
+	TSubclassOf<class UGameplayEffect> DefaultAttributeEffect;
+
+	UPROPERTY(BlueprintReadOnly, EditDefaultsOnly, Category = "Abilities")
+	TArray<TSubclassOf<class URockyGameplayAbility>> DefaultAbilities;
+	
 protected:
 
 	/** Called for movement input */
@@ -48,7 +72,6 @@ protected:
 
 	/** Called for looking input */
 	void Look(const FInputActionValue& Value);
-			
 
 protected:
 	// APawn interface
@@ -56,6 +79,7 @@ protected:
 	
 	// To add mapping context
 	virtual void BeginPlay();
+	
 
 public:
 	/** Returns CameraBoom subobject **/
