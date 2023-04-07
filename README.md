@@ -7,4 +7,6 @@ Unreal Rocky is a personnal project to learn all the fundamentals of Unreal Engi
 ## Copyright/Attribution :
 Music by Cleyton Kauffman - https://soundcloud.com/cleytonkauffman
 
+Sound by Bart K. (Submitted by bart) - https://opengameart.org/content/spell-4-fire
+
 Characters and animations from Mixamo
